@@ -1,27 +1,23 @@
 import { useState, useMemo } from "react";
-// 1. Importar lógica musical
 import { NOTES, getChordsForScale } from "./logic/theory";
-import type { ScaleType, Chord } from "./types";
+import { getBeatPattern } from "./logic/drums";
+import type { ScaleType, Chord, BeatPreset } from "./types";
 
-// 2. Importar motor de audio y componentes
-import { togglePlay, updateProgression } from "./audio/audioEngine";
+import { togglePlay, updateProgression, updateBeat } from "./audio/audioEngine";
 import { ChordGrid } from "./components/ChordGrid";
+import { BeatSelector } from "./components/BeatSelector";
 
 function App() {
-  // Configuración de la escala
   const [root, setRoot] = useState("F#");
   const [scale, setScale] = useState<ScaleType>("minor");
+  const [beatPreset, setBeatPreset] = useState<BeatPreset>("none");
 
-  // Generamos la paleta de acordes basada en la selección
   const palette = useMemo(() => getChordsForScale(root, scale), [root, scale]);
 
-  // 3. ESTADO DE LA PROGRESIÓN (Faltaba en tu código)
-  // Inicializamos con 4 compases usando el primer acorde de la paleta
   const [progression, setProgression] = useState<Chord[]>(() => 
     Array(4).fill(palette[0])
   );
 
-  // Sincronizar la progresión cuando la raíz o el modo cambian
   const handleScaleConfigChange = (newRoot: string, newScale: ScaleType) => {
     setRoot(newRoot);
     setScale(newScale);
@@ -30,7 +26,7 @@ function App() {
     const newProg = Array(4).fill(newPalette[0]); 
     
     setProgression(newProg);
-    updateProgression(newProg); // Notifica al motor de audio
+    updateProgression(newProg);
   };
 
   const handleGridChange = (next: Chord[]) => {
@@ -38,10 +34,16 @@ function App() {
     updateProgression(next);
   };
 
+  const handleBeatChange = (preset: BeatPreset) => {
+    setBeatPreset(preset);
+    const pattern = getBeatPattern(preset);
+    updateBeat(pattern);
+  };
+
   return (
     <div style={{ 
       padding: 24, 
-      backgroundColor: "#121212", // Un poco más oscuro para vibe de estudio
+      backgroundColor: "#121212",
       color: "white", 
       minHeight: "100vh",
       fontFamily: "sans-serif" 
@@ -49,7 +51,7 @@ function App() {
       <header style={{ marginBottom: 32 }}>
         <h1 style={{ margin: "0 0 16px 0", fontSize: "1.5rem" }}>Music Sketch</h1>
         
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button 
             onClick={() => togglePlay(progression)}
             style={{ 
@@ -68,7 +70,13 @@ function App() {
             <select 
               value={root} 
               onChange={(e) => handleScaleConfigChange(e.target.value, scale)}
-              style={{ padding: "6px", borderRadius: "4px" }}
+              style={{ 
+                padding: "6px", 
+                borderRadius: "4px",
+                backgroundColor: "#333",
+                color: "white",
+                border: "1px solid #555"
+              }}
             >
               {NOTES.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
@@ -76,13 +84,21 @@ function App() {
             <select 
               value={scale} 
               onChange={(e) => handleScaleConfigChange(root, e.target.value as ScaleType)}
-              style={{ padding: "6px", borderRadius: "4px" }}
+              style={{ 
+                padding: "6px", 
+                borderRadius: "4px",
+                backgroundColor: "#333",
+                color: "white",
+                border: "1px solid #555"
+              }}
             >
               <option value="major">Mayor</option>
               <option value="minor">Menor</option>
               <option value="dorian">Dórico</option>
             </select>
           </div>
+
+          <BeatSelector selected={beatPreset} onChange={handleBeatChange} />
         </div>
       </header>
 
