@@ -1,30 +1,28 @@
-type Chord = {
-  name: string
-  notes: string[]
-}
+// components/ChordGrid.tsx
+import type { Chord } from "../types"; // Importación de tipo obligatoria
 
 type Props = {
-  progression: Chord[]
-  onChange: (next: Chord[]) => void
-}
+  progression: Chord[];
+  palette: Chord[]; // <--- Agregamos esto para solucionar el error
+  onChange: (next: Chord[]) => void;
+};
 
-const chordPalette: Chord[] = [
-  { name: "F#m", notes: ["F#3", "A3", "C#4"] },
-  { name: "A", notes: ["A3", "C#4", "E4"] },
-  { name: "B", notes: ["B3", "D#4", "F#4"] },
-  { name: "C#m", notes: ["C#4", "E4", "G#4"] }
-]
-
-export function ChordGrid({ progression, onChange }: Props) {
+export function ChordGrid({ progression, palette, onChange }: Props) {
+  
   const cycleChord = (index: number) => {
-    const current = progression[index]
-    const i = chordPalette.findIndex(c => c.name === current.name)
-    const nextChord = chordPalette[(i + 1) % chordPalette.length]
+    const current = progression[index];
+    
+    // Buscamos el acorde actual dentro de la paleta activa
+    const i = palette.findIndex(c => c.name === current.name);
+    
+    // Si el acorde no está en la paleta (por un cambio de escala), 
+    // empezamos desde el primero. Si está, pasamos al siguiente.
+    const nextChord = palette[(i + 1) % palette.length];
 
-    const next = [...progression]
-    next[index] = nextChord
-    onChange(next)
-  }
+    const next = [...progression];
+    next[index] = nextChord;
+    onChange(next);
+  };
 
   return (
     <div style={{ display: "flex", gap: 12 }}>
@@ -33,20 +31,25 @@ export function ChordGrid({ progression, onChange }: Props) {
           key={index}
           onClick={() => cycleChord(index)}
           style={{
-            width: 80,
-            height: 80,
-            border: "2px solid #333",
-            borderRadius: 8,
+            width: 100,
+            height: 100,
+            border: "2px solid #444",
+            borderRadius: 12,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            userSelect: "none"
+            userSelect: "none",
+            backgroundColor: "#222",
+            transition: "all 0.1s ease"
           }}
         >
-          {chord.name}
+          <span style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+            {chord.name}
+          </span>
         </div>
       ))}
     </div>
-  )
+  );
 }
