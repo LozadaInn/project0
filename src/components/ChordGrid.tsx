@@ -9,9 +9,9 @@ import {
 } from "@dnd-kit/sortable";
 
 type Props = {
-  loopItems: LoopItem[];
+  loopItems: (LoopItem | undefined)[];
   palette: Chord[];
-  onChange: (next: LoopItem[]) => void;
+  onChange: (next: (LoopItem | undefined)[]) => void;
 };
 
 const MAX_VISIBLE_SLOTS = 8;
