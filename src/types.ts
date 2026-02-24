@@ -15,4 +15,20 @@ export type BeatPattern = {
   hihat: string[];
 };
 
+export type LoopItem = {
+  id: string;
+  chord: Chord;
+};
+
+export type DragItem =
+  | {
+      type: "PALETTE_CHORD";
+      chord: Chord;
+    }
+  | {
+      type: "LOOP_ITEM";
+      item: LoopItem;
+      index: number;
+    };
+
 export type BeatPreset = "none" | "basic" | "boomBap" | "house";

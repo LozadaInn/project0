@@ -13,13 +13,13 @@ let drumPart: Tone.Part | null = null;
 let currentProgression: Chord[] = [];
 let currentBeat: BeatPattern | null = null;
 
-// Drum samples (sintetizados)
+// Drum synths
 let kick: Tone.MembraneSynth | null = null;
 let snare: Tone.NoiseSynth | null = null;
 let hihat: Tone.MetalSynth | null = null;
 
 /**
- * Inicializa los instrumentos de batería
+ * Inicializa instrumentos de batería
  */
 function initDrums() {
   kick?.dispose();
@@ -45,12 +45,32 @@ function initDrums() {
     resonance: 4000,
     octaves: 1.5
   }).toDestination();
-  
-  hihat.volume.value = -12; // Hi-hat más suave
+
+  hihat.volume.value = -12;
 }
 
 /**
- * Crea un Tone.Part para el loop de batería
+ * Crea Tone.Part para acordes
+ * 1 acorde = 1 compás
+ */
+function createPart(progression: Chord[]) {
+  const events = progression.map((chord, index) => ({
+    time: `${index}m`,
+    notes: chord.notes
+  }));
+
+  const p = new Tone.Part((time, value) => {
+    synth?.triggerAttackRelease(value.notes, "1m", time);
+  }, events);
+
+  p.loop = true;
+  p.loopEnd = `${progression.length}m`;
+
+  return p;
+}
+
+/**
+ * Crea Tone.Part para batería
  */
 function createDrumPart(pattern: BeatPattern) {
   const events: Array<{ time: string; instrument: "kick" | "snare" | "hihat" }> = [];
@@ -66,48 +86,33 @@ function createDrumPart(pattern: BeatPattern) {
   }, events);
 
   p.loop = true;
-  p.loopEnd = "1m"; // La batería loop cada compás
-
-  return p;
-}
-
-/**
- * Crea un Tone.Part con loop infinito para acordes
- * 1 acorde = 1 compás
- */
-function createPart(progression: Chord[]) {
-  const events = progression.map((chord, index) => ({
-    time: `${index}m`,
-    notes: chord.notes
-  }));
-
-  const p = new Tone.Part((time, value) => {
-    synth!.triggerAttackRelease(value.notes, "1m", time);
-  }, events);
-
-  p.loop = true;
-  p.loopEnd = `${progression.length}m`;
+  p.loopEnd = "1m";
 
   return p;
 }
 
 /**
  * Play / Stop
- * Siempre reinicia el loop
  */
 export async function togglePlay(progression: Chord[]) {
   const transport = Tone.getTransport();
 
+  // STOP
   if (isPlaying) {
     transport.stop();
     transport.cancel();
+
     part?.dispose();
     drumPart?.dispose();
+
     part = null;
     drumPart = null;
     isPlaying = false;
     return;
   }
+
+  // 🚫 No reproducir si no hay acordes
+  if (progression.length === 0 && !currentBeat) return;
 
   await Tone.start();
 
@@ -115,14 +120,17 @@ export async function togglePlay(progression: Chord[]) {
   synth = new Tone.PolySynth(Tone.Synth).toDestination();
 
   initDrums();
-
   transport.cancel();
 
   currentProgression = progression;
-  part = createPart(progression);
-  part.start(0);
 
-  // Iniciar batería si hay un patrón seleccionado
+  // Solo crear part si hay acordes
+  if (progression.length > 0) {
+    part = createPart(progression);
+    part.start(0);
+  }
+
+  // Crear batería si hay patrón
   if (currentBeat) {
     drumPart = createDrumPart(currentBeat);
     drumPart.start(0);
@@ -133,17 +141,23 @@ export async function togglePlay(progression: Chord[]) {
 }
 
 /**
- * Actualiza la progresión sin detener el loop
- * El cambio entra en el siguiente ciclo
+ * Actualiza progresión en vivo
  */
 export function updateProgression(progression: Chord[]) {
   currentProgression = progression;
 
-  if (!isPlaying || !part) return;
+  if (!isPlaying) return;
 
   const transport = Tone.getTransport();
 
-  const loopDuration = Tone.Time(part.loopEnd!).toSeconds();
+  // 🔹 Si borran todos los acordes
+  if (progression.length === 0) {
+    part?.dispose();
+    part = null;
+    return;
+  }
+
+  const loopDuration = Tone.Time(`${progression.length}m`).toSeconds();
   const now = transport.seconds;
   const nextCycle = Math.ceil(now / loopDuration) * loopDuration;
 
@@ -151,17 +165,18 @@ export function updateProgression(progression: Chord[]) {
   const newPart = createPart(progression);
   newPart.start(nextCycle);
 
-  oldPart.stop(nextCycle);
-  transport.scheduleOnce(() => {
-    oldPart.dispose();
-  }, nextCycle + 0.001);
+  if (oldPart) {
+    oldPart.stop(nextCycle);
+    transport.scheduleOnce(() => {
+      oldPart.dispose();
+    }, nextCycle + 0.001);
+  }
 
   part = newPart;
 }
 
 /**
- * Actualiza el patrón de batería
- * Si está sonando, aplica el cambio en el siguiente compás
+ * Actualiza patrón de batería
  */
 export function updateBeat(pattern: BeatPattern | null) {
   currentBeat = pattern;
@@ -169,21 +184,19 @@ export function updateBeat(pattern: BeatPattern | null) {
   if (!isPlaying) return;
 
   const transport = Tone.getTransport();
+  const nextBar =
+    Math.ceil(transport.seconds / Tone.Time("1m").toSeconds()) *
+    Tone.Time("1m").toSeconds();
 
-  // Detener batería anterior
   if (drumPart) {
-    const nextBar = Math.ceil(transport.seconds / Tone.Time("1m").toSeconds()) * Tone.Time("1m").toSeconds();
     drumPart.stop(nextBar);
-    
     transport.scheduleOnce(() => {
       drumPart?.dispose();
       drumPart = null;
     }, nextBar + 0.001);
   }
 
-  // Iniciar nueva batería si hay patrón
   if (pattern) {
-    const nextBar = Math.ceil(transport.seconds / Tone.Time("1m").toSeconds()) * Tone.Time("1m").toSeconds();
     const newDrumPart = createDrumPart(pattern);
     newDrumPart.start(nextBar);
     drumPart = newDrumPart;

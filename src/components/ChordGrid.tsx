@@ -1,55 +1,89 @@
 // components/ChordGrid.tsx
-import type { Chord } from "../types"; // Importación de tipo obligatoria
+import type { Chord, LoopItem } from "../types";
+import { SortableChordItem } from "./SortableChordItem";
+import { useDroppable } from "@dnd-kit/core";
+
+import {
+  SortableContext,
+  horizontalListSortingStrategy
+} from "@dnd-kit/sortable";
 
 type Props = {
-  progression: Chord[];
-  palette: Chord[]; // <--- Agregamos esto para solucionar el error
-  onChange: (next: Chord[]) => void;
+  loopItems: LoopItem[];
+  palette: Chord[];
+  onChange: (next: LoopItem[]) => void;
 };
 
-export function ChordGrid({ progression, palette, onChange }: Props) {
-  
+const MAX_VISIBLE_SLOTS = 8;
+
+export function ChordGrid({ loopItems, palette, onChange }: Props) {
+
+  // 🔹 IDs fijos para los 8 slots
+  const slotIds = Array.from({ length: MAX_VISIBLE_SLOTS }).map(
+    (_, i) => `slot-${i}`
+  );
+
   const cycleChord = (index: number) => {
-    const current = progression[index];
-    
-    // Buscamos el acorde actual dentro de la paleta activa
-    const i = palette.findIndex(c => c.name === current.name);
-    
-    // Si el acorde no está en la paleta (por un cambio de escala), 
-    // empezamos desde el primero. Si está, pasamos al siguiente.
+    const currentItem = loopItems[index];
+    if (!currentItem || !palette.length) return;
+
+    const i = palette.findIndex(c => c.name === currentItem.chord.name);
     const nextChord = palette[(i + 1) % palette.length];
 
-    const next = [...progression];
-    next[index] = nextChord;
+    const next = [...loopItems];
+    next[index] = {
+      ...currentItem,
+      chord: nextChord,
+    };
+
     onChange(next);
   };
 
   return (
-    <div style={{ display: "flex", gap: 12 }}>
-      {progression.map((chord, index) => (
-        <div
-          key={index}
-          onClick={() => cycleChord(index)}
-          style={{
-            width: 100,
-            height: 100,
-            border: "2px solid #444",
-            borderRadius: 12,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            userSelect: "none",
-            backgroundColor: "#222",
-            transition: "all 0.1s ease"
-          }}
-        >
-          <span style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {chord.name}
-          </span>
-        </div>
-      ))}
-    </div>
+    <SortableContext
+      items={slotIds}
+      strategy={horizontalListSortingStrategy}
+    >
+      <div style={{ display: "flex", gap: 12 }}>
+        {slotIds.map((slotId, index) => {
+          const item = loopItems[index];
+
+          if (item) {
+            return (
+              <SortableChordItem
+                key={slotId}
+                id={slotId}
+                item={item}
+                onClick={() => cycleChord(index)}
+              />
+            );
+          }
+
+          return <EmptySlot key={slotId} id={slotId} />;
+        })}
+      </div>
+    </SortableContext>
+  );
+}
+
+/**
+ * Slot vacío droppable
+ */
+function EmptySlot({ id }: { id: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        width: 80,
+        height: 60,
+        border: "1px dashed #444",
+        borderRadius: 8,
+        opacity: 0.4,
+        backgroundColor: isOver ? "#333" : "transparent",
+        transition: "background-color 0.15s ease"
+      }}
+    />
   );
 }
